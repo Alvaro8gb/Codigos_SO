@@ -39,8 +39,8 @@ double tiempo(){
   struct timeval time_atc;
 
   gettimeofday(&time_atc, NULL);
-
-  return (double) time_atc.tv_sec * 1000;
+  int64_t time_us = (int64_t)time_act.tv_sec * 1E6L * (int64_t)time_act.tv_usec;  
+  return (double) (time_us/1000.0);
 }
 
 int check( double * a, double *b, double n )
@@ -89,8 +89,7 @@ void * pvec_trozo( void * arg )
   // COMPLETAR. Recibe un valor entero entre 0 y num_hilos y realiza la operación
   // sobre los elementos correspondientes del vector.
   int i, chunk;
-  int numero_hilo = 0/* COMPLETAR */;
-
+  int numero_hilo = (int ) arg;
   int ini, fin, num_valores;
 
   num_valores = tam / num_hilos;
@@ -100,26 +99,33 @@ void * pvec_trozo( void * arg )
 
   printf( "Thread %ld activo con id %d. Sumara %d valores, desde %d hasta %d\n", pthread_self(), numero_hilo, num_valores, ini, fin );
 
-  // COMPLETAR. Operación
+  for ( i = ini ; i< fin ; i++)
+	  vector4[i] = vector1[i] *  vector2[i] ;
 
 }
 
 
 // Operacion paralela.
-void pvec_paralelo( double * a, double * b, double * c, int n, int num_hilos )
-{
+void pvec_paralelo( double * a, double * b, double * c, int n, int num_hilos ){
+
 	int i = 0;
+	
+	pthread_t *array_threads = malloc(sizeof(pthread_t)*num_hilos);
 
-	// COMPLETAR. Creamos cada hilo e invocamos a pvec_trozo como punto de entrada
+	// Creamos cada hilo e invocamos a pvec_trozo como punto de entrada
 	// Proporcionamos un identificador entre 0 y num_hilos para cada nuevo hilo.
-	for( i = 0; i < num_hilos; i++ )
-	{
+
+	for( i = 0; i < num_hilos; i++ ){
+
+		pthread_create( &array_threads[i] , NULL, pvec_trozo, (void *) i );
 	}
 
-	// COMPLETAR. Esperamos a la finalización de los hilos.
-	for( i = 0; i < num_hilos; i++ )
-	{
+	// Esperamos a la finalización de los hilos.
+	for( i = 0; i < num_hilos; i++ ){
+		pthread_join(array_threads[i], NULL);
 	}
+
+	free(array_threads);
 }
 
 // Operacion secuencial.
@@ -204,13 +210,12 @@ int main( int argc, char * argv[] )
 	imprime_vector( vector4, tam );
 #endif
 	if( check( vector3, vector4, tam ) == 0 )
-	{
 		printf( "Resultado correcto!!\n" );
-	}
+	
 	else
-	{
 		printf( "Resultado incorrecto!!\n" );
-	}
+
+
 
 
 	// Liberamos memoria en el heap.
