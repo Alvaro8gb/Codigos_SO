@@ -9,8 +9,13 @@
 
 int dato = 0;       /* recurso */
 int n_lectores = 0; /* numero de lectores */
+int n_escritores = 0; /* numero de lectores */
+int  wr_in_sc = 0; 
+
 pthread_mutex_t mux ; // sem_t sem_lec;      /* controlar el acceso n_lectores */
 sem_t cerrojo;      /* controlar el acceso a dato */ /* solo un escritor modificando el recurso*/
+pthread_cond_t avisar_escritores;
+pthread_cond_t avisar_lectores;
 
 void * Lector(void * arg) {
   
@@ -18,28 +23,32 @@ void * Lector(void * arg) {
 
     int id = (int) arg;
 
-    pthread_mutex_lock(&mux) ; // sem_wait(&sem_lec);
+    
+    pthread_mutex_lock(&mux) ;
 
-    n_lectores = n_lectores + 1;
+    while(n_escritores > 0){
+      pthread_cond_wait(&avisar_escritores, &mux);
+    }
 
-    if (n_lectores == 1)
-      sem_wait(&cerrojo);
+    n_lectores++;
+    
+    pthread_mutex_unlock(&mux) ;
 
-    pthread_mutex_unlock(&mux) ; // sem_post(&sem_lec);
 
     /* leer dato */
     printf("El lector\t%d lee dato:\t%d\n",id, dato); //  pthread_self()
     
-    pthread_mutex_lock(&mux) ; // sem_wait(&sem_lec);
+    pthread_mutex_lock(&mux) ;
 
-    n_lectores = n_lectores - 1;
+    n_lectores--;
 
-    if (n_lectores == 0)
-      sem_post(&cerrojo);
+    if(n_lectores == 0){
+      pthread_cond_signal(&avisar_escritores);
+    }
 
-    pthread_mutex_unlock(&mux) ; // sem_post(&sem_lec);
+    pthread_mutex_unlock(&mux) ;
     
-    sleep(rand()%10);
+    sleep(4);
   }
 
   pthread_exit(0);
@@ -49,15 +58,39 @@ void * Escritor(void * arg) {
   
   int id = (int) (arg);
   for (int i = rand()%10;i>0;i--) {
-    sem_wait(&cerrojo);
+
+    pthread_mutex_lock(&mux) ;
+    n_escritores++;
+
+
+    while(n_lectores > 0 && wr_in_sc){
+        pthread_cond_wait(&avisar_escritores,&mux);
+    }
+
+     wr_in_sc=1;
+
+    pthread_mutex_unlock(&mux) ;
 
     /* modificar el recurso */
     dato = dato + 2;
     printf("El escritor\t%d modifica dato:\t%d\n", id, dato); // pthread_self()
 
-    sem_post(&cerrojo);
+    
+    pthread_mutex_lock(&mux) ;
+    n_escritores--;
+    wr_in_sc=0;
 
-    sleep(rand()%20);
+
+    if(n_escritores > 0 ) // preferencia a los escritores
+      pthread_cond_signal(&avisar_escritores);
+    
+    else
+      pthread_cond_signal(&avisar_lectores);
+    
+
+    pthread_mutex_lock(&mux) ;
+
+    sleep(4);
   }
   pthread_exit(0);
 }
